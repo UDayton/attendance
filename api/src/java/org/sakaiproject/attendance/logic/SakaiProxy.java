@@ -204,6 +204,14 @@ public interface SakaiProxy {
 	User getUser(String userId);
 
 	/**
+	 * get user
+	 *
+	 * @param userEid, the userId
+	 * @return the user
+	 */
+	User getUserByEID(String userEid);
+
+	/**
 	 * get's a user sort name
 	 *
 	 * @param userId, the userID
