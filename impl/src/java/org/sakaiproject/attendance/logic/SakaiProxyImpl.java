@@ -313,6 +313,17 @@ public class SakaiProxyImpl implements SakaiProxy {
 		return "";
 	}
 
+	/*
+	* {@inheritDoc}
+	 */
+	public String getUserSortNameByEID(final String userEid) {
+		User u = getUserByEID(userEid);
+		if(u != null){
+			return u.getSortName();
+		}
+		return "";
+	}
+
 	/**
 	 * {@inheritDoc}
 	 */

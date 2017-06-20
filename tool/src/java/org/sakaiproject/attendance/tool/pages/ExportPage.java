@@ -29,6 +29,8 @@ import org.apache.wicket.util.time.Duration;
 import org.apache.wicket.markup.html.link.DownloadLink;
 import org.apache.wicket.markup.html.form.upload.FileUpload;
 import org.apache.wicket.markup.html.form.upload.FileUploadField;
+import org.apache.wicket.ajax.AjaxRequestTarget;
+import org.apache.wicket.ajax.markup.html.form.AjaxCheckBox;
 
 import org.apache.poi.hssf.usermodel.*;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
@@ -58,6 +60,8 @@ public class ExportPage extends BasePage{
     private String holder = "";
     private int rowCounter = 0;
     private static final long serialVersionUID = 1L;
+    boolean includeComments = false;
+    boolean blankSheet = false;
     public ExportPage() {
     }
 
@@ -68,33 +72,32 @@ public class ExportPage extends BasePage{
         Model<AttendanceSite> siteModel = new Model<>(attendanceLogic.getCurrentAttendanceSite());
         Form<AttendanceSite> exportForm = new Form<>("export-form", siteModel);
         add(exportForm);
+        exportForm.add(new AjaxCheckBox("exportIncludeComments", Model.of(this.includeComments)) {
+            private static final long serialVersionUID = 1L;
+            @Override
+            protected void onUpdate(final AjaxRequestTarget ajaxRequestTarget) {
+                ExportPage.this.includeComments = !ExportPage.this.includeComments;
+                setDefaultModelObject(ExportPage.this.includeComments);
+            }
+        });
+
+        exportForm.add(new AjaxCheckBox("exportBlankSheet", Model.of(this.blankSheet)) {
+            private static final long serialVersionUID = 1L;
+            @Override
+            protected void onUpdate(final AjaxRequestTarget ajaxRequestTarget) {
+                ExportPage.this.blankSheet = !ExportPage.this.blankSheet;
+                setDefaultModelObject(ExportPage.this.blankSheet);
+            }
+        });
+
         exportForm.add(new DownloadLink("submit-link", new LoadableDetachableModel<File>() {
             private static final long serialVersionUID = 1L;
             @Override
             protected File load() {
-                return buildExcelFile(false, true);
+                return buildExcelFile(blankSheet, includeComments);
             }
         }).setCacheDuration(Duration.NONE).setDeleteAfterDownload(true));
 
-        Form<AttendanceSite> exportForm2 = new Form<>("export-form2", siteModel);
-        add(exportForm2);
-        exportForm2.add(new DownloadLink("submit-link2", new LoadableDetachableModel<File>() {
-            private static final long serialVersionUID = 1L;
-            @Override
-            protected File load() {
-                return buildExcelFile(false, false);
-            }
-        }).setCacheDuration(Duration.NONE).setDeleteAfterDownload(true));
-
-        Form<AttendanceSite> blankExportForm = new Form<>("export-formblank", siteModel);
-        add(blankExportForm);
-        blankExportForm.add(new DownloadLink("submit-link2", new LoadableDetachableModel<File>() {
-            private static final long serialVersionUID = 1L;
-            @Override
-            protected File load() {
-                return buildExcelFile(true ,true);
-            }
-        }).setCacheDuration(Duration.NONE).setDeleteAfterDownload(true));
         add(new UploadForm("form"));
     }
 
@@ -119,7 +122,15 @@ public class ExportPage extends BasePage{
             Collections.sort(userStatsList, new Comparator<AttendanceUserStats>() {
                 @Override
                 public int compare(AttendanceUserStats attendanceUserStats, AttendanceUserStats t1) {
-                    return attendanceUserStats.getId().intValue() - t1.getId().intValue();
+                    if((attendanceUserStats.getUserID() == null) && (t1.getUserID() == null)) {
+                        return 0;
+                    } else if (attendanceUserStats.getUserID() == null){
+                        return -1;
+                    } else if (t1.getUserID() == null){
+                        return 1;
+                    } else {
+                        return sakaiProxy.getUserSortName(attendanceUserStats.getUserID()).compareTo(sakaiProxy.getUserSortName(t1.getUserID()));
+                    }
                 }
             });
             Collections.sort(attendanceEventlist, new Comparator<AttendanceEvent>() {
@@ -163,10 +174,11 @@ public class ExportPage extends BasePage{
             header.add("Section");
 
             for(int y = 0; y < eventCount; y++){
-                if (String.valueOf(attendanceEventlist.get(y).getStartDateTime()).equals(null)){
-                    header.add(attendanceEventlist.get(y).getName() + "[ ]");
+                String holder2 = String.valueOf(attendanceEventlist.get(y).getStartDateTime());
+                if (holder2.equals("null")){
+                    header.add(attendanceEventlist.get(y).getName() + "[]" + "(" + String.valueOf(attendanceEventlist.get(y).getId())+ ")");
                     if(commentsOnOff){
-                        header.add(attendanceEventlist.get(y).getName() + "[ ]Comments");
+                        header.add(attendanceEventlist.get(y).getName() + "[]Comments" + "(" + String.valueOf(attendanceEventlist.get(y).getId())+ ")");
                     }
                 }
                 else{
@@ -238,7 +250,7 @@ public class ExportPage extends BasePage{
                         } else if (this.holder.equals("LEFT_EARLY")){
                             this.holder = "LE";
                         } else {
-                            this.holder = "N/A";
+                            this.holder = "";
                         }
                         HSSFCell cell = row.createCell(cellCount[0]);
                         if(blankSheet){
@@ -311,20 +323,47 @@ public class ExportPage extends BasePage{
         @Override
         public void onSubmit() {
             String statusInput;
+            String eventHeaderHolder;
             String idHolder;
+            String dateHolder;
             String comment;
+            String oldComment;
+            String extension = "";
+            String eventDateHolder ="";
             int sheetLengthcounter;
             int indexCounter = 0;
-            int index = 0;
+            int headerIndexStart = 0;
+            int headerIndexEnd = 0;
             int eventCounter = 3;
-            boolean noComments = false;
+            boolean hasComments = false;
+            boolean recordExists = false;
+            boolean eventExists;
+            boolean commentsChanged = false;
+            boolean hasRows = true;
+            boolean unmodified = true;
+            boolean badHeader = false;
+            User userHolder;
             final String selectedGroup = null;
             final List<Long> idTracker = new ArrayList<Long>();
+            final List<String> eventNameList = new ArrayList<String>();
+            final List<String> eventDateList = new ArrayList<String>();
+            int a = 0;
+            boolean changes = false;
+            ImportConfirmList ICL = new ImportConfirmList();
+            List<ImportConfirmList> ICList = new ArrayList<ImportConfirmList>();
             List<AttendanceUserStats> userStatsList = attendanceLogic.getUserStatsForCurrentSite(selectedGroup);
             Collections.sort(userStatsList, new Comparator<AttendanceUserStats>() {
                 @Override
                 public int compare(AttendanceUserStats attendanceUserStats, AttendanceUserStats t1) {
-                    return attendanceUserStats.getId().intValue() - t1.getId().intValue();
+                    if((attendanceUserStats.getId() == null) && (t1.getId() == null)) {
+                        return 0;
+                    } else if (attendanceUserStats.getId() == null){
+                        return -1;
+                    } else if (t1.getId() == null){
+                        return 1;
+                    } else {
+                        return attendanceUserStats.getId().intValue() - t1.getId().intValue();
+                    }
                 }
             });
             AttendanceSite attendanceSite = attendanceLogic.getAttendanceSite(sakaiProxy.getCurrentSiteId());
@@ -333,94 +372,209 @@ public class ExportPage extends BasePage{
             int eventCount = attendanceEventlist.size();
             int studentCount = userList.size();
             final FileUpload upload = this.fileUploadField.getFileUpload();
-
             if (upload != null) {
+                extension = upload.getClientFileName();
+                if (extension.contains(".")) {
+                    extension = extension.substring(extension.lastIndexOf(".") + 1, extension.length());
+                }
+            }
+            if (upload == null) {
+                getSession().error(getString("attendance.export.import.error.null_file"));
+                setResponsePage(new Overview());
+            } else if (upload.getSize() == 0) {
+                getSession().error(getString("attendance.export.import.error.empty_file"));
+                setResponsePage(new ExportPage());
+            }else if (!(ExportPage.ExportFormat.XLS.toString().toLowerCase()).equals(extension)){
+                getSession().error("ajndjadnaksjdnkasjdn");
+                setResponsePage(new ExportPage());
+            } else if (upload != null) {
                 try{
                     File temp = upload.writeToTempFile();
                     FileInputStream fis = new FileInputStream(temp);
                     HSSFWorkbook workbook = new HSSFWorkbook(fis);
                     HSSFSheet sheet = workbook.getSheetAt(0);
                     Iterator rows = sheet.rowIterator();
-                    rowCounter = 0;
-                    for(int r =0; r <= studentCount; r++){
-                        sheetLengthcounter = 0;
-                        HSSFRow row = (HSSFRow) rows.next();
-                        Iterator cells = row.cellIterator();
-
-                        List data = new ArrayList();
-                        while (cells.hasNext()) {
-                            HSSFCell cell = (HSSFCell) cells.next();
-                            data.add(cell);
-                            sheetLengthcounter++;
-                        }
-                        if(sheetLengthcounter < ((eventCount * 2)+ 3)){
-                            noComments = true;
-                        }
-                        if(noComments){
-                            eventCounter = (sheetLengthcounter - 3);
-                        } else {
-                            eventCounter = ((sheetLengthcounter - 3)/2);
-                        }
-                        if(rowCounter == 0){
-                            for(int q =0; q < eventCounter  && q < eventCount; q++) {
-                                if(noComments){
-                                    idHolder = String.valueOf(data.get(3 + q));
-                                }else {
-                                    idHolder = String.valueOf(data.get(3 + (2 * q)));
-                                }
-                                index = idHolder.lastIndexOf(")");
-                                idHolder = idHolder.substring(0,index);
-                                index = idHolder.lastIndexOf("(");
-                                idHolder = idHolder.substring(index + 1);
-                                idTracker.add(Long.parseLong(idHolder));
+                    if(!(rows.hasNext())) {
+                        hasRows = false;
+                    }
+                    if(hasRows){
+                        rowCounter = 0;
+                        for(int r =0; r <= studentCount; r++) {
+                            sheetLengthcounter = 0;
+                            HSSFRow row = (HSSFRow) rows.next();
+                            Iterator cells = row.cellIterator();
+                            List data = new ArrayList();
+                            List missingNames = new ArrayList();
+                            while (cells.hasNext()) {
+                                HSSFCell cell = (HSSFCell) cells.next();
+                                data.add(cell);
+                                sheetLengthcounter++;
                             }
-                        }
-                        if (rowCounter > 0){
-                            String sheetName = String.valueOf(data.get(1));
-                            List<AttendanceRecord> attendanceRecordlist = attendanceLogic.getAttendanceRecordsForUser(userStatsList.get(rowCounter -1).getUserID().toString());
-                            String name = sakaiProxy.getUserSortName(userStatsList.get(rowCounter -1).getUserID());
-                            for(int q =0; q < eventCounter  && q < eventCount; q++){
-                                List<AttendanceRecord> records = new ArrayList<AttendanceRecord>((attendanceLogic.getAttendanceEvent(idTracker.get(q))).getRecords());
-                                for(int s = 0; s < studentCount; s++){
-                                    if(sheetName.equals(sakaiProxy.getUserSortName(records.get(s).getUserID()))){
-                                        indexCounter = s;
+                            if (rowCounter == 0) {
+                                if ((data.get(0).equals("StudentID")) && (data.get(0).equals("Student Name")) && (data.get(0).equals("Section"))) {
+                                    unmodified = true;
+                                }
+                                hasComments = (data.get(4).toString().contains("]Comments("));
+                            }
+
+                            if (hasComments) {
+                                eventCounter = ((sheetLengthcounter - 3) / 2);
+                            } else {
+                                eventCounter = (sheetLengthcounter - 3);
+                            }
+                            if(unmodified){
+                                if (rowCounter == 0) {
+                                    for (int q = 0; q < eventCounter; q++) {
+                                        if (hasComments) {
+                                            eventHeaderHolder = String.valueOf(data.get(3 + (2 * q)));
+                                        } else {
+                                            eventHeaderHolder = String.valueOf(data.get(3 + q));
+                                        }
+                                        headerIndexStart = eventHeaderHolder.lastIndexOf("(");
+                                        headerIndexEnd = eventHeaderHolder.lastIndexOf(")");
+                                        idHolder = eventHeaderHolder.substring(headerIndexStart+ 1, headerIndexEnd);
+                                        headerIndexStart = eventHeaderHolder.lastIndexOf("[");
+                                        headerIndexEnd = eventHeaderHolder.lastIndexOf("]");
+                                        dateHolder = eventHeaderHolder.substring(headerIndexStart + 1, headerIndexEnd);
+                                        idTracker.add(Long.parseLong(idHolder));
+                                        eventNameList.add(eventHeaderHolder.substring(0 ,headerIndexStart));
+                                        if(headerIndexEnd == (headerIndexStart + 1)){
+                                            eventDateList.add("NODATE");
+                                        } else {
+                                            eventDateList.add(dateHolder);
+                                        }
+
+
                                     }
                                 }
-                                AttendanceRecord aR = attendanceLogic.getAttendanceRecord(records.get(indexCounter).getId());
-                                if(noComments){
-                                    statusInput = String.valueOf(data.get(3 + q));
-                                    comment = String.valueOf(aR.getComment());
-                                }else {
-                                    statusInput = String.valueOf(data.get(3 + (2 * q)));
-                                    comment = String.valueOf(data.get(4 + (2 * q)));
+                                if (rowCounter > 0) {
+                                    String userName = String.valueOf(data.get(1));
+                                    String userEID = String.valueOf(data.get(0));
+                                    List<AttendanceRecord> attendanceRecordlist = attendanceLogic.getAttendanceRecordsForUser(userStatsList.get(rowCounter - 1).getUserID().toString());
+                                    List<AttendanceEvent> siteEventList = new ArrayList<AttendanceEvent>(attendanceLogic.getAttendanceEventsForCurrentSite());
+                                    User userGetter;
+                                    String name = sakaiProxy.getUserSortName(userStatsList.get(rowCounter - 1).getUserID());
+
+                                    for (int q = 0; q < eventCounter; q++) {
+                                        recordExists = false;
+                                        eventExists = false;
+                                        for (int i = 0; i < siteEventList.size(); i++) {
+                                            if (siteEventList.get(i).getId().equals(idTracker.get(q))) {
+                                                eventExists = true;
+                                            }
+                                        }
+
+                                        if (eventExists) {
+                                            List<AttendanceRecord> records = new ArrayList<AttendanceRecord>((attendanceLogic.getAttendanceEvent(idTracker.get(q))).getRecords());
+                                            for (int s = 0; s < records.size(); s++) {
+                                                userGetter = sakaiProxy.getUser(records.get(s).getUserID());
+                                                if (userEID.equals(userGetter.getEid())) {
+                                                    indexCounter = s;
+                                                    recordExists = true;
+                                                }
+                                            }
+                                            AttendanceRecord aR;
+                                            if (recordExists) {
+                                                aR = attendanceLogic.getAttendanceRecord(records.get(indexCounter).getId());
+                                            } else {
+                                                missingNames.add(userEID);
+                                                userGetter = sakaiProxy.getUserByEID(userEID);
+                                                aR = new AttendanceRecord((attendanceLogic.getAttendanceEvent(idTracker.get(q))), userGetter.getId(), Status.UNKNOWN);
+                                                missingNames.clear();
+                                            }
+                                            if (hasComments) {
+                                                statusInput = String.valueOf(data.get(3 + (2 * q))).toUpperCase();
+                                                comment = String.valueOf(data.get(4 + (2 * q)));
+                                            } else {
+                                                statusInput = String.valueOf(data.get(3 + q)).toUpperCase();
+                                                comment = String.valueOf(aR.getComment());
+                                            }
+                                            oldComment = aR.getComment();
+                                            if (Objects.equals(oldComment, null)) {
+                                                oldComment = "";
+                                            } else {
+                                                oldComment = aR.getComment();
+                                            }
+                                            if (comment.equals("null")) {
+                                                comment = "";
+                                            }
+
+                                            aR.setComment(comment);
+                                            String eventName = String.valueOf(eventNameList.get(q));
+                                            String eventDate = String.valueOf(eventDateList.get(q));
+                                            Status holder = aR.getStatus();
+                                            if (statusInput.equals("P") || (statusInput.equals("PRESENT"))) {
+                                                aR.setStatus(Status.PRESENT);
+                                            } else if (statusInput.equals("A") || (statusInput.equals("UNEXCUSED_ABSENCE")) || (statusInput.equals("ABSENT")) || (statusInput.equals("UNEXCUSED ABSENCE")) || (statusInput.equals("UNEXCUSED"))) {
+                                                aR.setStatus(Status.UNEXCUSED_ABSENCE);
+                                            } else if (statusInput.equals("E") || (statusInput.equals("EXCUSED_ABSENCE")) || (statusInput.equals("EXCUSED ABSENCE")) || (statusInput.equals("EXCUSED"))) {
+                                                aR.setStatus(Status.EXCUSED_ABSENCE);
+                                            } else if (statusInput.equals("L") || (statusInput.equals("LATE"))) {
+                                                aR.setStatus(Status.LATE);
+                                            } else if (statusInput.equals("LE") || (statusInput.equals("LEFT_EARLY")) || (statusInput.equals("LEFT EARLY"))) {
+                                                aR.setStatus(Status.LEFT_EARLY);
+                                            } else {
+                                                aR.setStatus(Status.UNKNOWN);
+                                            }
+                                            if (aR.getStatus().equals(holder) && (oldComment.equals(aR.getComment()))) {
+                                            } else {
+                                                ICL = new ImportConfirmList();
+                                                ICL.setAttendanceEvent(attendanceLogic.getAttendanceEvent(idTracker.get(q)));
+                                                ICL.setAttendanceRecord(aR);
+                                                ICL.setAttendanceSite(attendanceSite);
+                                                ICL.setComment(comment);
+                                                ICL.setId(aR.getId());
+                                                ICL.setUserID(aR.getUserID());
+                                                ICL.setOldComment(oldComment);
+                                                ICL.setStatus(aR.getStatus());
+                                                ICL.setOldStatus(holder);
+                                                ICL.setEventName(eventName);
+                                                ICL.setEventDate(eventDate);
+                                                ICList.add(a, ICL);
+                                                a++;
+                                                changes = true;
+                                            }
+                                            if(oldComment.equals(aR.getComment())){
+                                            }else{commentsChanged = true;}
+                                        } else {
+                                            badHeader = true;
+                                        }
+                                    }
                                 }
-                                Status holder = aR.getStatus();
-                                if(statusInput.equals("P") || (statusInput.equals("PRESENT"))) {
-                                    aR.setStatus(Status.PRESENT);
-                                } else if (statusInput.equals("A") || (statusInput.equals("UNEXCUSED_ABSENCE")) || (statusInput.equals("ABSENT"))){
-                                    aR.setStatus(Status.UNEXCUSED_ABSENCE);
-                                } else if (statusInput.equals("E") || (statusInput.equals("EXCUSED_ABSENCE")) || (statusInput.equals("EXCUSED"))){
-                                    aR.setStatus(Status.EXCUSED_ABSENCE);
-                                } else if (statusInput.equals("L") || (statusInput.equals("LATE"))){
-                                    aR.setStatus(Status.LATE);
-                                } else if (statusInput.equals("LE") || (statusInput.equals("LEFT_EARLY"))){
-                                    aR.setStatus(Status.LEFT_EARLY);
-                                } else {
-                                    aR.setStatus(Status.UNKNOWN);
-                                }
-                                aR.setComment(comment);
-                                boolean updated = attendanceLogic.updateAttendanceRecord(aR, holder);
                             }
+                            rowCounter++;
                         }
-                        rowCounter++;
                     }
                     fis.close();
                 } catch (final IOException e) {
                     throw new RuntimeException(e);
                 }
                 log.debug("file upload success");
+                if(!(hasRows)){
+                    getSession().error(getString("attendance.export.import.error.empty_file"));
+                    setResponsePage(new ExportPage());
+                } else if(changes){
+                    if(badHeader){
+                        getSession().error(getString("attendance.export.import.error.badHeaderError.submit"));
+                    }
+                    setResponsePage(new ImportConfirmation(ICList ,commentsChanged));
+                } else if (unmodified) {
+
+                    if(badHeader){
+                        getSession().error(getString("attendance.export.import.error.badHeaderError.nochange"));
+                    } else {
+                        getSession().error(getString("attendance.export.import.save.noChange"));
+                    }
+                    setResponsePage(new ExportPage());
+                } else {
+                    getSession().error(getString("attendance.export.import.save.fileError"));
+                    setResponsePage(new ExportPage());
+                }
+            } else{
+                getSession().error("Unknown error");
+                setResponsePage(new Overview());
             }
-            setResponsePage(new Overview());
+
         }
     }
 }
