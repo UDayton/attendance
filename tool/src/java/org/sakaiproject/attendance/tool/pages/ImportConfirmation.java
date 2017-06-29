@@ -32,8 +32,6 @@ import org.apache.wicket.markup.html.form.SubmitLink;
 import org.apache.wicket.markup.html.link.Link;
 import org.apache.wicket.markup.html.list.ListItem;
 import org.apache.wicket.markup.html.list.ListView;
-import org.apache.wicket.markup.repeater.Item;
-import org.apache.wicket.markup.repeater.data.DataView;
 
 import org.apache.wicket.model.ResourceModel;
 
@@ -55,18 +53,11 @@ public class ImportConfirmation  extends BasePage{
     private AttendanceStatusProvider attendanceStatusProvider;
     private DropDownChoice<String> groupChoice;
     private String selectedGroup;
-    private List<ImportConfirmList> ICLpart2;
+    private List<ImportConfirmList> uploadICLList;
 
-    public ImportConfirmation(List<ImportConfirmList> ICL, Boolean commentsChanged) {
+    public ImportConfirmation(List<ImportConfirmList> attendanceItemDataList, Boolean commentsChanged) {
 
-
-        if(commentsChanged){
-            System.out.println("Comments");
-
-        } else {
-            System.out.println("nope");
-        }
-        this.ICLpart2 = ICL;
+        this.uploadICLList = attendanceItemDataList;
         homepageLink = new Link<Void>("homepage-link2") {
             private static final long serialVersionUID = 1L;
             public void onClick() {
@@ -84,59 +75,57 @@ public class ImportConfirmation  extends BasePage{
 
         this.attendanceStatusProvider = new AttendanceStatusProvider(attendanceLogic.getCurrentAttendanceSite(), AttendanceStatusProvider.ACTIVE);
 
-        add(createStatsTable(ICL, commentsChanged));
+        add(createStatsTable(attendanceItemDataList, commentsChanged));
     }
 
-    private WebMarkupContainer createStatsTable(List<ImportConfirmList> ICL, boolean commentsChanged) {
-        WebMarkupContainer  statsTable      = new WebMarkupContainer("student-overview-stats-table");
+    private WebMarkupContainer createStatsTable(List<ImportConfirmList> attendanceItemDataList, boolean commentsChanged) {
+        WebMarkupContainer statsTable = new WebMarkupContainer("student-overview-stats-table");
         createStatsTableHeader(statsTable, commentsChanged);
-        createStatsTableData(statsTable, ICL, commentsChanged);
+        createStatsTableData(statsTable, attendanceItemDataList, commentsChanged);
         return statsTable;
     }
 
-    private void createStatsTableHeader(WebMarkupContainer t, boolean commentsChanged) {
-        WebMarkupContainer oldCommentwmc1 = new WebMarkupContainer("old-comment-header");
-        WebMarkupContainer newCommentwmc1 = new WebMarkupContainer("new-comment-header");
-        t.add(oldCommentwmc1);
-        t.add(newCommentwmc1);
-        oldCommentwmc1.add(new Label("old-comment", "Old Comment"));
-        if(commentsChanged){
-            oldCommentwmc1.setVisible(true);
-        } else {
-            oldCommentwmc1.setVisible(false);
-        }
-        newCommentwmc1.add(new Label("new-comment", "New Comment"));
-        if(commentsChanged){
-            newCommentwmc1.setVisible(true);
-        } else {
-            newCommentwmc1.setVisible(false);
-        }
+    private void createStatsTableHeader(WebMarkupContainer attendanceItemTableContainer, boolean commentsChanged) {
+        WebMarkupContainer oldCommentContainer = new WebMarkupContainer("old-comment-header") {
+            @Override
+            public boolean isVisible() {
+                return commentsChanged;
+            }
+        };
+        WebMarkupContainer newCommentContainer = new WebMarkupContainer("new-comment-header"){
+            @Override
+            public boolean isVisible() {
+                return commentsChanged;
+            }
+        };
+        attendanceItemTableContainer.add(oldCommentContainer);
+        attendanceItemTableContainer.add(newCommentContainer);
+        oldCommentContainer.add(new Label("old-comment", "Old Comment"));
+        newCommentContainer.add(new Label("new-comment", "New Comment"));
     }
 
-    private void createStatsTableData(WebMarkupContainer t, List<ImportConfirmList> ICL, boolean commentsChanged) {
+    private void createStatsTableData(WebMarkupContainer attendanceItemTableContainer, List<ImportConfirmList> attendanceItemDataList, boolean commentsChanged) {
         final Map<String, AttendanceGrade> gradeMap = attendanceLogic.getAttendanceGrades();
 
-        final ListView<ImportConfirmList> uListView = new ListView<ImportConfirmList>("students", ICL) {
-            int counter = 0;
-            int counter2 = 0;
-            int statusSwitch = 0;
+        final ListView<ImportConfirmList> uListView = new ListView<ImportConfirmList>("students", attendanceItemDataList) {
+            int importConfirmListIndex = 0;
             @Override
             protected void populateItem(ListItem<ImportConfirmList> item) {
                 WebMarkupContainer newCommentwmc = new WebMarkupContainer("new-comment-wmc");
                 WebMarkupContainer oldCommentwmc = new WebMarkupContainer("old-comment-wmc");
                 String stat = "";
-                if(ICL.get(counter).getEventDate().equals("NODATE")){
-                    item.add(new Label("event-name-label", String.valueOf(ICL.get(counter).getEventName())));
+                if(attendanceItemDataList.get(importConfirmListIndex).getEventDate().equals("NODATE")){
+                    item.add(new Label("event-name-label", String.valueOf(attendanceItemDataList.get(importConfirmListIndex).getEventName())));
                 } else {
-                    item.add(new Label("event-name-label", String.valueOf(ICL.get(counter).getEventName()) + "[" + String.valueOf(ICL.get(counter).getEventDate()) + "]"));
+                    item.add(new Label("event-name-label", String.valueOf(attendanceItemDataList.get(importConfirmListIndex).getEventName()) + "[" + String.valueOf(attendanceItemDataList.get(importConfirmListIndex).getEventDate()) + "]"));
                 }
-                item.add(new Label("student-name-label", sakaiProxy.getUserSortName(ICL.get(counter).getUserID())));
+                item.add(new Label("student-name-label", sakaiProxy.getUserSortName(attendanceItemDataList.get(importConfirmListIndex).getUserID())));
 
-                stat =String.valueOf(ICL.get(counter).getOldStatus());
+                stat =String.valueOf(attendanceItemDataList.get(importConfirmListIndex).getOldStatus());
                 stat = changeStatString(stat);
                 item.add(new Label("old-status-label", stat));
 
-                stat = String.valueOf(ICL.get(counter).getOldComment());
+                stat = String.valueOf(attendanceItemDataList.get(importConfirmListIndex).getOldComment());
                 stat = changeStatString(stat);
                 item.add(oldCommentwmc);
                 oldCommentwmc.add(new Label("old-comment-label", stat));
@@ -146,12 +135,12 @@ public class ImportConfirmation  extends BasePage{
                     oldCommentwmc.setVisible(false);
                 }
 
-                stat = String.valueOf(ICL.get(counter).getStatus());
+                stat = String.valueOf(attendanceItemDataList.get(importConfirmListIndex).getStatus());
                 stat = changeStatString(stat);
                 item.add(new Label("new-status-label", stat));
 
 
-                stat = String.valueOf(ICL.get(counter).getComment());
+                stat = String.valueOf(attendanceItemDataList.get(importConfirmListIndex).getComment());
                 stat = changeStatString(stat);
                 item.add(newCommentwmc);
                 newCommentwmc.add(new Label("new-comment-label", stat));
@@ -161,41 +150,7 @@ public class ImportConfirmation  extends BasePage{
                     newCommentwmc.setVisible(false);
                 }
 
-
-
-
-
-                /*DataView<AttendanceStatus> activeStatusStats = new DataView<AttendanceStatus>("active-status-stats",  attendanceStatusProvider) {
-                    @Override
-                    protected void populateItem(Item<AttendanceStatus> statusItem) {
-                        String stat = "";
-                        if(statusSwitch == 0){
-                            stat = sakaiProxy.getUserSortName(ICL.get(counter2).getUserID());
-                            stat = changeStatString(stat);
-                            statusSwitch = 1;
-                        } else if (statusSwitch == 1){
-                            stat = String.valueOf(ICL.get(counter2).getStatus());
-                            stat = changeStatString(stat);
-                            statusSwitch = 2;
-                        } else if (statusSwitch == 2){
-                            stat = String.valueOf(ICL.get(counter2).getComment());
-                            stat = changeStatString(stat);
-                            statusSwitch = 3;
-                        } else if (statusSwitch == 3){
-                            stat = String.valueOf(ICL.get(counter2).getOldStatus());
-                            stat = changeStatString(stat);
-                            statusSwitch = 4;
-                        }else {
-                            stat = String.valueOf(ICL.get(counter2).getOldComment());
-                            stat = changeStatString(stat);
-                            statusSwitch =0;
-                            counter2++;
-                        }
-                        statusItem.add(new Label("student-stats", stat));
-                    }
-                };*/
-                counter++;
-                //item.add(activeStatusStats);
+                importConfirmListIndex++;
             }
         };
 
@@ -212,9 +167,9 @@ public class ImportConfirmation  extends BasePage{
             }
         };
 
-        t.add(uListView);
-        t.add(noStudents);
-        t.add(noStudents2);
+        attendanceItemTableContainer.add(uListView);
+        attendanceItemTableContainer.add(noStudents);
+        attendanceItemTableContainer.add(noStudents2);
     }
 
     private String changeStatString(String stat){
@@ -243,9 +198,9 @@ public class ImportConfirmation  extends BasePage{
 
             add(new SubmitLink("submitLink") {
                 public void onSubmit() {
-                    for (int i = 0; i < ICLpart2.size(); i++){
-                        boolean updated = attendanceLogic.updateAttendanceRecord(ICLpart2.get(i).getAttendanceRecord(), ICLpart2.get(i).getOldStatus());
-                        attendanceLogic.updateAttendanceSite(ICLpart2.get(i).getAttendanceSite());
+                    for (int i = 0; i < uploadICLList.size(); i++){
+                        boolean updated = attendanceLogic.updateAttendanceRecord(uploadICLList.get(i).getAttendanceRecord(), uploadICLList.get(i).getOldStatus());
+                        attendanceLogic.updateAttendanceSite(uploadICLList.get(i).getAttendanceSite());
                     }
                     getSession().success(getString("attendance.export.confirmation.import.save.success"));
                     setResponsePage(new Overview());

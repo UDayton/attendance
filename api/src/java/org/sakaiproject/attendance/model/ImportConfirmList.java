@@ -50,10 +50,10 @@ import java.util.Set;
         @Getter @Setter private String              eventDate;
 
 
-        public ImportConfirmList(AttendanceEvent e, String uId, Status s) {
+        public ImportConfirmList(AttendanceEvent e, String uId, Status newStatus) {
             this.attendanceEvent    = e;
             this.userID             = uId;
-            this.status             = s;
+            this.status             = newStatus;
         }
 
         @Override

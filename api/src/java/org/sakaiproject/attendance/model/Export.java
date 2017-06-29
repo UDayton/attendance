@@ -18,6 +18,5 @@ import lombok.NoArgsConstructor;
 public class Export implements Serializable {
     private long userID;
     private String Status;
-    private String status;
     private String comment;
 }
