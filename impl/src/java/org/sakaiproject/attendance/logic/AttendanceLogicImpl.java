@@ -717,7 +717,7 @@ public class AttendanceLogicImpl implements AttendanceLogic {
 		AttendanceItemStats itemStats = getStatsForEvent(aE);
 		updateStats(null, itemStats, oldStatus, aR.getStatus());
 	}
-	
+
 	private boolean updateUserStats(AttendanceRecord record, Status oldStatus) {
 		AttendanceUserStats userStats = dao.getAttendanceUserStats(record.getUserID(), record.getAttendanceEvent().getAttendanceSite());
 		if(userStats == null) { // assume null userStats means stats haven't been calculated yet
