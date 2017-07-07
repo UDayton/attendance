@@ -891,22 +891,12 @@ span.yui-skin-sam img {
     padding-left: 120px;
 }
 .exportPageInfoBox{
-    width: 410px;
+
     overflow: auto;
     border: solid;
     border-width: 1px;
     margin-left: 60px;
     margin-right: 60px;
-
-    float:right;
-}
-.exportPageInfoBox2{
-    width: 235px;
-    overflow: auto;
-    border: solid;
-    border-color: transparent;
-    margin-left: 60px;
-    float:right;
 }
 .exportPageUL{
     list-style-type:none;

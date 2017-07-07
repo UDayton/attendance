@@ -336,6 +336,7 @@ public class ExportPage extends BasePage{
             int headerIndexEnd = 0;
             int eventCounter = 3;
             boolean hasComments = false;
+            boolean hasCells = false;
             boolean recordExists = false;
             boolean eventExists;
             boolean commentsChanged = false;
@@ -408,8 +409,10 @@ public class ExportPage extends BasePage{
                             while (cells.hasNext()) {
                                 HSSFCell cell = (HSSFCell) cells.next();
                                 data.add(cell);
+                                hasCells = true;
                                 sheetLengthcounter++;
                             }
+
                             if (rowCounter == 0) {
                                 if ((data.get(0).equals("StudentID")) && (data.get(0).equals("Student Name")) && (data.get(0).equals("Section"))) {
                                     unmodified = true;
@@ -447,7 +450,8 @@ public class ExportPage extends BasePage{
 
                                     }
                                 }
-                                if (rowCounter > 0) {
+                                if ((rowCounter > 0)&&(hasCells)) {
+                                    hasCells = false;
                                     String userName = String.valueOf(data.get(1));
                                     String userEID = String.valueOf(data.get(0));
                                     List<AttendanceRecord> attendanceRecordlist = attendanceLogic.getAttendanceRecordsForUser(userStatsList.get(rowCounter - 1).getUserID().toString());
