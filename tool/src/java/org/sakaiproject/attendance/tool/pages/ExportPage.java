@@ -16,6 +16,7 @@
 
 package org.sakaiproject.attendance.tool.pages;
 
+import org.sakaiproject.attendance.logic.SakaiProxy;
 import org.sakaiproject.attendance.model.*;
 import org.sakaiproject.user.api.User;
 
@@ -59,6 +60,8 @@ public class ExportPage extends BasePage{
     }
     private String holder = "";
     private int rowCounter = 0;
+    private int userStatsCounter = 0;
+    private int repeatPlaceHolder = 0;
     private static final long serialVersionUID = 1L;
     boolean includeComments = false;
     boolean blankSheet = false;
@@ -109,27 +112,61 @@ public class ExportPage extends BasePage{
             int eventCount;
             int studentCount;
             int columnFinder = 0;
-
+            boolean studentRecorded = false;
             // Create new sheet
             HSSFSheet mainSheet = wb.createSheet("Export");
             // Create Excel header
             final List<String> header = new ArrayList<String>();
             final String selectedGroup = null;
+            final String siteID = sakaiProxy.getCurrentSiteId();
             final List<AttendanceEvent> eventHolder = new ArrayList<AttendanceEvent>();
-            AttendanceSite attendanceSite = attendanceLogic.getAttendanceSite(sakaiProxy.getCurrentSiteId());
+            AttendanceSite attendanceSite = attendanceLogic.getAttendanceSite(siteID);
             List<AttendanceEvent> attendanceEventlist = attendanceLogic.getAttendanceEventsForSite(attendanceSite);
-            List<AttendanceUserStats> userStatsList = attendanceLogic.getUserStatsForCurrentSite(selectedGroup);
-            Collections.sort(userStatsList, new Comparator<AttendanceUserStats>() {
+            List<String> groupIds = sakaiProxy.getAvailableGroupsForCurrentSite();
+            List<AttendanceUserGroupStats> finalUserStatsList = new ArrayList<AttendanceUserGroupStats>();
+            AttendanceUserGroupStats finalUserStatsListholder = new AttendanceUserGroupStats();
+            for(int i = 0; i < groupIds.size(); i++){
+                List<AttendanceUserStats> groupUserStatsList = attendanceLogic.getUserStatsForCurrentSite(groupIds.get(i));
+                if(groupUserStatsList.size()>0){
+                    for(int j =0; j < groupUserStatsList.size(); j++){
+                        for(int k = 0; k < finalUserStatsList.size(); k++){
+                            if(groupUserStatsList.get(j).getUserID().equals(finalUserStatsList.get(k).getUserID())){
+                                studentRecorded = true;
+                                repeatPlaceHolder = k;
+                            }
+                        }
+                        if(studentRecorded){
+                            finalUserStatsListholder = new AttendanceUserGroupStats();
+                            finalUserStatsListholder.setId(finalUserStatsList.get(repeatPlaceHolder).getId());
+                            finalUserStatsListholder.setUserID(finalUserStatsList.get(repeatPlaceHolder).getUserID());
+                            finalUserStatsListholder.setAttendanceSite(finalUserStatsList.get(repeatPlaceHolder).getAttendanceSite());
+                            finalUserStatsListholder.setGroupId(finalUserStatsList.get(repeatPlaceHolder).getGroupId() + ", " + sakaiProxy.getGroupTitle(siteID ,groupIds.get(i)));
+                            finalUserStatsList.set(repeatPlaceHolder, finalUserStatsListholder);
+                        }
+                        else {
+                            finalUserStatsListholder = new AttendanceUserGroupStats();
+                            finalUserStatsListholder.setId(groupUserStatsList.get(j).getId());
+                            finalUserStatsListholder.setUserID(groupUserStatsList.get(j).getUserID());
+                            finalUserStatsListholder.setAttendanceSite(groupUserStatsList.get(j).getAttendanceSite());
+                            finalUserStatsListholder.setGroupId(sakaiProxy.getGroupTitle(siteID ,groupIds.get(i)));
+                            finalUserStatsList.add(userStatsCounter, finalUserStatsListholder);
+                            userStatsCounter++;
+                        }
+                        studentRecorded = false;
+                    }
+                }
+            }
+            Collections.sort(finalUserStatsList, new Comparator<AttendanceUserGroupStats>() {
                 @Override
-                public int compare(AttendanceUserStats attendanceUserStats, AttendanceUserStats t1) {
-                    if((attendanceUserStats.getUserID() == null) && (t1.getUserID() == null)) {
+                public int compare(AttendanceUserGroupStats attendanceUserGroupStats, AttendanceUserGroupStats t1) {
+                    if((attendanceUserGroupStats.getUserID() == null) && (t1.getUserID() == null)) {
                         return 0;
-                    } else if (attendanceUserStats.getUserID() == null){
+                    } else if (attendanceUserGroupStats.getUserID() == null){
                         return -1;
                     } else if (t1.getUserID() == null){
                         return 1;
                     } else {
-                        return sakaiProxy.getUserSortName(attendanceUserStats.getUserID()).compareTo(sakaiProxy.getUserSortName(t1.getUserID()));
+                        return sakaiProxy.getUserSortName(attendanceUserGroupStats.getUserID()).compareTo(sakaiProxy.getUserSortName(t1.getUserID()));
                     }
                 }
             });
@@ -168,7 +205,7 @@ public class ExportPage extends BasePage{
                 }
             });
             eventCount = attendanceEventlist.size();
-            studentCount = userStatsList.size();
+            studentCount = finalUserStatsList.size();
             header.add("StudentID");
             header.add("Student Name");
             header.add("Section");
@@ -208,9 +245,9 @@ public class ExportPage extends BasePage{
             final int[] cellCount = {0};
             for(int x = 0; x < studentCount; x++) {
                 rowCounter = 0;
-                List<AttendanceRecord> attendanceRecordlist = attendanceLogic.getAttendanceRecordsForUser(userStatsList.get(x).getUserID().toString());
+                List<AttendanceRecord> attendanceRecordlist = attendanceLogic.getAttendanceRecordsForUser(finalUserStatsList.get(x).getUserID().toString());
                 HSSFRow row = mainSheet.createRow(rowCount[0]);
-                final User user = sakaiProxy.getUser(userStatsList.get(x).getUserID());
+                final User user = sakaiProxy.getUser(finalUserStatsList.get(x).getUserID());
                 cellCount[0] = 0;
 
                 if (true) {
@@ -227,7 +264,7 @@ public class ExportPage extends BasePage{
                 }
                 if (true) {
                     HSSFCell cell = row.createCell(cellCount[0]);
-                    cell.setCellValue(String.valueOf(sakaiProxy.getCurrentSiteId()));
+                    cell.setCellValue(finalUserStatsList.get(x).getGroupId());
                     cell.setCellType(cell.CELL_TYPE_STRING);
                     cellCount[0]++;
                 }
@@ -341,7 +378,7 @@ public class ExportPage extends BasePage{
             boolean eventExists;
             boolean commentsChanged = false;
             boolean hasRows = true;
-            boolean unmodified = true;
+            boolean unmodified = false;
             boolean badHeader = false;
             User userHolder;
             final String selectedGroup = null;
@@ -409,15 +446,20 @@ public class ExportPage extends BasePage{
                             while (cells.hasNext()) {
                                 HSSFCell cell = (HSSFCell) cells.next();
                                 data.add(cell);
-                                hasCells = true;
                                 sheetLengthcounter++;
                             }
 
                             if (rowCounter == 0) {
-                                if ((data.get(0).equals("StudentID")) && (data.get(0).equals("Student Name")) && (data.get(0).equals("Section"))) {
+                                if ((data.get(0).toString().equals("StudentID")) && (data.get(1).toString().equals("Student Name")) && (data.get(2).toString().equals("Section"))) {
                                     unmodified = true;
                                 }
                                 hasComments = (data.get(4).toString().contains("]Comments("));
+                            }else{
+                                if (data.get(0).toString().equals("")){
+                                    hasCells = false;
+                                } else {
+                                    hasCells = true;
+                                }
                             }
 
                             if (hasComments) {
@@ -427,6 +469,7 @@ public class ExportPage extends BasePage{
                             }
                             if(unmodified){
                                 if (rowCounter == 0) {
+                                    hasCells = false;
                                     for (int q = 0; q < eventCounter; q++) {
                                         if (hasComments) {
                                             eventHeaderHolder = String.valueOf(data.get(3 + (2 * q)));
