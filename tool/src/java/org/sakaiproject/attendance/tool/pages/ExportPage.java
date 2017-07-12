@@ -438,159 +438,169 @@ public class ExportPage extends BasePage{
                     if(hasRows){
                         rowCounter = 0;
                         for(int r =0; r <= studentCount; r++) {
-                            sheetLengthcounter = 0;
-                            HSSFRow row = (HSSFRow) rows.next();
-                            Iterator cells = row.cellIterator();
-                            List data = new ArrayList();
-                            List missingNames = new ArrayList();
-                            while (cells.hasNext()) {
-                                HSSFCell cell = (HSSFCell) cells.next();
-                                data.add(cell);
-                                hasCells = true;
-                                sheetLengthcounter++;
-                            }
-
-                            if (rowCounter == 0) {
-                                if ((data.get(0).toString().equals("StudentID")) && (data.get(1).toString().equals("Student Name")) && (data.get(2).toString().equals("Section"))) {
-                                    unmodified = true;
-                                }
-                                hasComments = (data.get(4).toString().contains("]Comments("));
-                            }else{
-                                if (data.get(0).toString().equals("")){
-                                    hasCells = false;
-                                } else {
+                            if (rows.hasNext()) {
+                                sheetLengthcounter = 0;
+                                HSSFRow row = (HSSFRow) rows.next();
+                                Iterator cells = row.cellIterator();
+                                List data = new ArrayList();
+                                List missingNames = new ArrayList();
+                                while (cells.hasNext()) {
+                                    HSSFCell cell = (HSSFCell) cells.next();
+                                    data.add(cell);
                                     hasCells = true;
+                                    sheetLengthcounter++;
                                 }
-                            }
 
-                            if (hasComments) {
-                                eventCounter = ((sheetLengthcounter - 3) / 2);
-                            } else {
-                                eventCounter = (sheetLengthcounter - 3);
-                            }
-                            if(unmodified){
                                 if (rowCounter == 0) {
-                                    hasCells = false;
-                                    for (int q = 0; q < eventCounter; q++) {
-                                        if (hasComments) {
-                                            eventHeaderHolder = String.valueOf(data.get(3 + (2 * q)));
+                                    if ((data.get(0).toString().equals("StudentID")) && (data.get(1).toString().equals("Student Name")) && (data.get(2).toString().equals("Section"))) {
+                                        unmodified = true;
+                                    }
+                                    hasComments = (data.get(4).toString().contains("]Comments("));
+                                } else {
+                                    if (data.size() > 0) {
+                                        if (data.get(0).toString().equals("")) {
+                                            hasCells = false;
                                         } else {
-                                            eventHeaderHolder = String.valueOf(data.get(3 + q));
+                                            hasCells = true;
                                         }
-                                        headerIndexStart = eventHeaderHolder.lastIndexOf("(");
-                                        headerIndexEnd = eventHeaderHolder.lastIndexOf(")");
-                                        idHolder = eventHeaderHolder.substring(headerIndexStart+ 1, headerIndexEnd);
-                                        headerIndexStart = eventHeaderHolder.lastIndexOf("[");
-                                        headerIndexEnd = eventHeaderHolder.lastIndexOf("]");
-                                        dateHolder = eventHeaderHolder.substring(headerIndexStart + 1, headerIndexEnd);
-                                        idTracker.add(Long.parseLong(idHolder));
-                                        eventNameList.add(eventHeaderHolder.substring(0 ,headerIndexStart));
-                                        if(headerIndexEnd == (headerIndexStart + 1)){
-                                            eventDateList.add("NODATE");
-                                        } else {
-                                            eventDateList.add(dateHolder);
-                                        }
-
-
+                                    } else {
+                                        hasCells = false;
                                     }
                                 }
-                                if ((rowCounter > 0)&&(hasCells)) {
-                                    hasCells = false;
-                                    String userName = String.valueOf(data.get(1));
-                                    String userEID = String.valueOf(data.get(0));
-                                    List<AttendanceRecord> attendanceRecordlist = attendanceLogic.getAttendanceRecordsForUser(userStatsList.get(rowCounter - 1).getUserID().toString());
-                                    List<AttendanceEvent> siteEventList = new ArrayList<AttendanceEvent>(attendanceLogic.getAttendanceEventsForCurrentSite());
-                                    User userGetter;
-                                    String name = sakaiProxy.getUserSortName(userStatsList.get(rowCounter - 1).getUserID());
 
-                                    for (int q = 0; q < eventCounter; q++) {
-                                        recordExists = false;
-                                        eventExists = false;
-                                        for (int i = 0; i < siteEventList.size(); i++) {
-                                            if (siteEventList.get(i).getId().equals(idTracker.get(q))) {
-                                                eventExists = true;
+                                if (hasComments) {
+                                    eventCounter = ((sheetLengthcounter - 3) / 2);
+                                } else {
+                                    eventCounter = (sheetLengthcounter - 3);
+                                }
+                                if (unmodified) {
+                                    if (rowCounter == 0) {
+                                        hasCells = false;
+                                        for (int q = 0; q < eventCounter; q++) {
+                                            if (hasComments) {
+                                                eventHeaderHolder = String.valueOf(data.get(3 + (2 * q)));
+                                            } else {
+                                                eventHeaderHolder = String.valueOf(data.get(3 + q));
                                             }
-                                        }
+                                            headerIndexStart = eventHeaderHolder.lastIndexOf("(");
+                                            headerIndexEnd = eventHeaderHolder.lastIndexOf(")");
+                                            idHolder = eventHeaderHolder.substring(headerIndexStart + 1, headerIndexEnd);
+                                            headerIndexStart = eventHeaderHolder.lastIndexOf("[");
+                                            headerIndexEnd = eventHeaderHolder.lastIndexOf("]");
+                                            dateHolder = eventHeaderHolder.substring(headerIndexStart + 1, headerIndexEnd);
+                                            idTracker.add(Long.parseLong(idHolder));
+                                            eventNameList.add(eventHeaderHolder.substring(0, headerIndexStart));
+                                            if (headerIndexEnd == (headerIndexStart + 1)) {
+                                                eventDateList.add("NODATE");
+                                            } else {
+                                                eventDateList.add(dateHolder);
+                                            }
 
-                                        if (eventExists) {
-                                            List<AttendanceRecord> records = new ArrayList<AttendanceRecord>((attendanceLogic.getAttendanceEvent(idTracker.get(q))).getRecords());
-                                            for (int s = 0; s < records.size(); s++) {
-                                                userGetter = sakaiProxy.getUser(records.get(s).getUserID());
-                                                if (userEID.equals(userGetter.getEid())) {
-                                                    indexCounter = s;
-                                                    recordExists = true;
+
+                                        }
+                                    }
+                                    if ((rowCounter > 0) && (hasCells)) {
+                                        hasCells = false;
+                                        String userName = String.valueOf(data.get(1));
+                                        String userEID = String.valueOf(data.get(0));
+                                        List<AttendanceRecord> attendanceRecordlist = attendanceLogic.getAttendanceRecordsForUser(userStatsList.get(rowCounter - 1).getUserID().toString());
+                                        List<AttendanceEvent> siteEventList = new ArrayList<AttendanceEvent>(attendanceLogic.getAttendanceEventsForCurrentSite());
+                                        User userGetter;
+                                        String name = sakaiProxy.getUserSortName(userStatsList.get(rowCounter - 1).getUserID());
+
+                                        for (int q = 0; q < eventCounter; q++) {
+                                            recordExists = false;
+                                            eventExists = false;
+                                            for (int i = 0; i < siteEventList.size(); i++) {
+                                                if (siteEventList.get(i).getId().equals(idTracker.get(q))) {
+                                                    eventExists = true;
                                                 }
                                             }
-                                            AttendanceRecord aR;
-                                            if (recordExists) {
-                                                aR = attendanceLogic.getAttendanceRecord(records.get(indexCounter).getId());
-                                            } else {
-                                                missingNames.add(userEID);
-                                                userGetter = sakaiProxy.getUserByEID(userEID);
-                                                aR = new AttendanceRecord((attendanceLogic.getAttendanceEvent(idTracker.get(q))), userGetter.getId(), Status.UNKNOWN);
-                                                missingNames.clear();
-                                            }
-                                            if (hasComments) {
-                                                statusInput = String.valueOf(data.get(3 + (2 * q))).toUpperCase();
-                                                comment = String.valueOf(data.get(4 + (2 * q)));
-                                            } else {
-                                                statusInput = String.valueOf(data.get(3 + q)).toUpperCase();
-                                                comment = String.valueOf(aR.getComment());
-                                            }
-                                            oldComment = aR.getComment();
-                                            if (Objects.equals(oldComment, null)) {
-                                                oldComment = "";
-                                            } else {
-                                                oldComment = aR.getComment();
-                                            }
-                                            if (comment.equals("null")) {
-                                                comment = "";
-                                            }
 
-                                            aR.setComment(comment);
-                                            String eventName = String.valueOf(eventNameList.get(q));
-                                            String eventDate = String.valueOf(eventDateList.get(q));
-                                            Status holder = aR.getStatus();
-                                            if (statusInput.equals("P") || (statusInput.equals("PRESENT"))) {
-                                                aR.setStatus(Status.PRESENT);
-                                            } else if (statusInput.equals("A") || (statusInput.equals("UNEXCUSED_ABSENCE")) || (statusInput.equals("ABSENT")) || (statusInput.equals("UNEXCUSED ABSENCE")) || (statusInput.equals("UNEXCUSED"))) {
-                                                aR.setStatus(Status.UNEXCUSED_ABSENCE);
-                                            } else if (statusInput.equals("E") || (statusInput.equals("EXCUSED_ABSENCE")) || (statusInput.equals("EXCUSED ABSENCE")) || (statusInput.equals("EXCUSED"))) {
-                                                aR.setStatus(Status.EXCUSED_ABSENCE);
-                                            } else if (statusInput.equals("L") || (statusInput.equals("LATE"))) {
-                                                aR.setStatus(Status.LATE);
-                                            } else if (statusInput.equals("LE") || (statusInput.equals("LEFT_EARLY")) || (statusInput.equals("LEFT EARLY"))) {
-                                                aR.setStatus(Status.LEFT_EARLY);
+                                            if (eventExists) {
+                                                List<AttendanceRecord> records = new ArrayList<AttendanceRecord>((attendanceLogic.getAttendanceEvent(idTracker.get(q))).getRecords());
+                                                for (int s = 0; s < records.size(); s++) {
+                                                    userGetter = sakaiProxy.getUser(records.get(s).getUserID());
+                                                    if (userEID.equals(userGetter.getEid())) {
+                                                        indexCounter = s;
+                                                        recordExists = true;
+                                                    }
+                                                }
+                                                AttendanceRecord aR;
+                                                if (recordExists) {
+                                                    aR = attendanceLogic.getAttendanceRecord(records.get(indexCounter).getId());
+                                                } else {
+                                                    missingNames.add(userEID);
+                                                    userGetter = sakaiProxy.getUserByEID(userEID);
+                                                    aR = new AttendanceRecord((attendanceLogic.getAttendanceEvent(idTracker.get(q))), userGetter.getId(), Status.UNKNOWN);
+                                                    missingNames.clear();
+                                                }
+                                                if (hasComments) {
+                                                    statusInput = String.valueOf(data.get(3 + (2 * q))).toUpperCase();
+                                                    comment = String.valueOf(data.get(4 + (2 * q)));
+                                                } else {
+                                                    statusInput = String.valueOf(data.get(3 + q)).toUpperCase();
+                                                    comment = String.valueOf(aR.getComment());
+                                                }
+                                                oldComment = aR.getComment();
+                                                if (Objects.equals(oldComment, null)) {
+                                                    oldComment = "";
+                                                } else {
+                                                    oldComment = aR.getComment();
+                                                }
+                                                if (comment.equals("null")) {
+                                                    comment = "";
+                                                }
+
+                                                aR.setComment(comment);
+                                                String eventName = String.valueOf(eventNameList.get(q));
+                                                String eventDate = String.valueOf(eventDateList.get(q));
+                                                Status holder = aR.getStatus();
+                                                if (statusInput.equals("P") || (statusInput.equals("PRESENT"))) {
+                                                    aR.setStatus(Status.PRESENT);
+                                                } else if (statusInput.equals("A") || (statusInput.equals("UNEXCUSED_ABSENCE")) || (statusInput.equals("ABSENT")) || (statusInput.equals("UNEXCUSED ABSENCE")) || (statusInput.equals("UNEXCUSED"))) {
+                                                    aR.setStatus(Status.UNEXCUSED_ABSENCE);
+                                                } else if (statusInput.equals("E") || (statusInput.equals("EXCUSED_ABSENCE")) || (statusInput.equals("EXCUSED ABSENCE")) || (statusInput.equals("EXCUSED"))) {
+                                                    aR.setStatus(Status.EXCUSED_ABSENCE);
+                                                } else if (statusInput.equals("L") || (statusInput.equals("LATE"))) {
+                                                    aR.setStatus(Status.LATE);
+                                                } else if (statusInput.equals("LE") || (statusInput.equals("LEFT_EARLY")) || (statusInput.equals("LEFT EARLY"))) {
+                                                    aR.setStatus(Status.LEFT_EARLY);
+                                                } else {
+                                                    aR.setStatus(Status.UNKNOWN);
+                                                }
+                                                if (aR.getStatus().equals(holder) && (oldComment.equals(aR.getComment()))) {
+                                                } else {
+                                                    ICL = new ImportConfirmList();
+                                                    ICL.setAttendanceEvent(attendanceLogic.getAttendanceEvent(idTracker.get(q)));
+                                                    ICL.setAttendanceRecord(aR);
+                                                    ICL.setAttendanceSite(attendanceSite);
+                                                    ICL.setComment(comment);
+                                                    ICL.setId(aR.getId());
+                                                    ICL.setUserID(aR.getUserID());
+                                                    ICL.setOldComment(oldComment);
+                                                    ICL.setStatus(aR.getStatus());
+                                                    ICL.setOldStatus(holder);
+                                                    ICL.setEventName(eventName);
+                                                    ICL.setEventDate(eventDate);
+                                                    ICList.add(a, ICL);
+                                                    a++;
+                                                    changes = true;
+                                                }
+                                                if (oldComment.equals(aR.getComment())) {
+                                                } else {
+                                                    commentsChanged = true;
+                                                }
                                             } else {
-                                                aR.setStatus(Status.UNKNOWN);
+                                                badHeader = true;
                                             }
-                                            if (aR.getStatus().equals(holder) && (oldComment.equals(aR.getComment()))) {
-                                            } else {
-                                                ICL = new ImportConfirmList();
-                                                ICL.setAttendanceEvent(attendanceLogic.getAttendanceEvent(idTracker.get(q)));
-                                                ICL.setAttendanceRecord(aR);
-                                                ICL.setAttendanceSite(attendanceSite);
-                                                ICL.setComment(comment);
-                                                ICL.setId(aR.getId());
-                                                ICL.setUserID(aR.getUserID());
-                                                ICL.setOldComment(oldComment);
-                                                ICL.setStatus(aR.getStatus());
-                                                ICL.setOldStatus(holder);
-                                                ICL.setEventName(eventName);
-                                                ICL.setEventDate(eventDate);
-                                                ICList.add(a, ICL);
-                                                a++;
-                                                changes = true;
-                                            }
-                                            if(oldComment.equals(aR.getComment())){
-                                            }else{commentsChanged = true;}
-                                        } else {
-                                            badHeader = true;
                                         }
+                                    } else {
+                                        hasCells = true;
                                     }
                                 }
+                                rowCounter++;
                             }
-                            rowCounter++;
                         }
                     }
                     fis.close();
@@ -626,3 +636,4 @@ public class ExportPage extends BasePage{
         }
     }
 }
+
