@@ -291,12 +291,36 @@ public class SakaiProxyImpl implements SakaiProxy {
 	/**
 	 * {@inheritDoc}
 	 */
+	public final User getUserByEID(String userEid) {
+		try {
+			return userDirectoryService.getUserByEid(userEid);
+		} catch (UserNotDefinedException e) {
+			log.error("Unable to get user " + userEid + " " + e);
+			e.printStackTrace();
+			return null;
+		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
 	public String getUserSortName(String userId) {
 		User u = getUser(userId);
 		if(u != null){
 			return u.getSortName();
 		}
 
+		return "";
+	}
+
+	/*
+	* {@inheritDoc}
+	 */
+	public String getUserSortNameByEID(final String userEid) {
+		User u = getUserByEID(userEid);
+		if(u != null){
+			return u.getSortName();
+		}
 		return "";
 	}
 
