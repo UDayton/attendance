@@ -181,6 +181,15 @@ public interface SakaiProxy {
 	List<User> getGroupMembership(String siteId, String groupId);
 
 	/**
+	 * Get Users in a Section of a Site
+	 *
+	 * @param siteId, the SiteID
+	 * @param groupId, the Group ID
+	 * @return a List of Users in SectionId of SiteId
+	 */
+	List<User> getSectionMembership(String siteId, String groupId);
+
+	/**
 	 * Get all available Groups for Site
 	 *
 	 * @param siteId, the SiteId

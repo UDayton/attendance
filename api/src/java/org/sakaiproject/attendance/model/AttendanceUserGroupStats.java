@@ -32,7 +32,7 @@ import org.apache.commons.lang.builder.HashCodeBuilder;
 public class AttendanceUserGroupStats {
     private static final    long            serialVersionUID    = 1L;
 
-    private                 Long            id;
+    private                 String            id;
     private                 String          userID;
     private                 String          groupId;
     private                 AttendanceSite  attendanceSite;

@@ -20,6 +20,7 @@ import org.sakaiproject.attendance.logic.SakaiProxy;
 import org.sakaiproject.attendance.model.*;
 import org.sakaiproject.user.api.User;
 
+import org.apache.wicket.RestartResponseException;
 import org.apache.wicket.markup.html.form.Button;
 import org.apache.wicket.markup.html.form.Form;
 import org.apache.wicket.markup.html.form.SubmitLink;
@@ -72,6 +73,10 @@ public class ExportPage extends BasePage{
     protected void onBeforeRender() {
         super.onBeforeRender();
         disableLink(exportLink);
+        if(this.role != null && this.role.equals("Student")) {
+            throw new RestartResponseException(StudentView.class);
+        }
+
         Model<AttendanceSite> siteModel = new Model<>(attendanceLogic.getCurrentAttendanceSite());
         Form<AttendanceSite> exportForm = new Form<>("export-form", siteModel);
         add(exportForm);
@@ -99,6 +104,9 @@ public class ExportPage extends BasePage{
             protected File load() {
                 return buildExcelFile(blankSheet, includeComments);
             }
+            public void onSubmit() {
+                setResponsePage(new ExportPage());
+            }
         }).setCacheDuration(Duration.NONE).setDeleteAfterDownload(true));
 
         add(new UploadForm("form"));
@@ -107,12 +115,15 @@ public class ExportPage extends BasePage{
     private File buildExcelFile(boolean blankSheet, boolean commentsOnOff) {
         File tempFile;
         try {
+            setResponsePage(new ExportPage());
+            userStatsCounter = 0;
             tempFile = File.createTempFile(buildFileNamePrefix(), buildFileNameSuffix());
             final HSSFWorkbook wb = new HSSFWorkbook();
             int eventCount;
             int studentCount;
             int columnFinder = 0;
             boolean studentRecorded = false;
+            boolean localUserExists = false;
             // Create new sheet
             HSSFSheet mainSheet = wb.createSheet("Export");
             // Create Excel header
@@ -124,13 +135,17 @@ public class ExportPage extends BasePage{
             List<AttendanceEvent> attendanceEventlist = attendanceLogic.getAttendanceEventsForSite(attendanceSite);
             List<String> groupIds = sakaiProxy.getAvailableGroupsForCurrentSite();
             List<AttendanceUserGroupStats> finalUserStatsList = new ArrayList<AttendanceUserGroupStats>();
+            List<AttendanceUserStats> fullUserList = attendanceLogic.getUserStatsForSite(attendanceLogic.getAttendanceSite(siteID), null);
+
             AttendanceUserGroupStats finalUserStatsListholder = new AttendanceUserGroupStats();
+
             for(int i = 0; i < groupIds.size(); i++){
+                List<User> testchecker = sakaiProxy.getSectionMembership(siteID, groupIds.get(i));
                 List<AttendanceUserStats> groupUserStatsList = attendanceLogic.getUserStatsForCurrentSite(groupIds.get(i));
-                if(groupUserStatsList.size()>0){
-                    for(int j =0; j < groupUserStatsList.size(); j++){
+                if(testchecker.size()>0){
+                    for(int j =0; j < testchecker.size(); j++){
                         for(int k = 0; k < finalUserStatsList.size(); k++){
-                            if(groupUserStatsList.get(j).getUserID().equals(finalUserStatsList.get(k).getUserID())){
+                            if(testchecker.get(j).getId().equals(finalUserStatsList.get(k).getUserID())){
                                 studentRecorded = true;
                                 repeatPlaceHolder = k;
                             }
@@ -141,19 +156,43 @@ public class ExportPage extends BasePage{
                             finalUserStatsListholder.setUserID(finalUserStatsList.get(repeatPlaceHolder).getUserID());
                             finalUserStatsListholder.setAttendanceSite(finalUserStatsList.get(repeatPlaceHolder).getAttendanceSite());
                             finalUserStatsListholder.setGroupId(finalUserStatsList.get(repeatPlaceHolder).getGroupId() + ", " + sakaiProxy.getGroupTitle(siteID ,groupIds.get(i)));
+
                             finalUserStatsList.set(repeatPlaceHolder, finalUserStatsListholder);
                         }
                         else {
                             finalUserStatsListholder = new AttendanceUserGroupStats();
-                            finalUserStatsListholder.setId(groupUserStatsList.get(j).getId());
-                            finalUserStatsListholder.setUserID(groupUserStatsList.get(j).getUserID());
-                            finalUserStatsListholder.setAttendanceSite(groupUserStatsList.get(j).getAttendanceSite());
+                            finalUserStatsListholder.setId(testchecker.get(j).getId());
+                            finalUserStatsListholder.setUserID(testchecker.get(j).getId());
+                            finalUserStatsListholder.setAttendanceSite(attendanceLogic.getAttendanceSite(siteID));
                             finalUserStatsListholder.setGroupId(sakaiProxy.getGroupTitle(siteID ,groupIds.get(i)));
                             finalUserStatsList.add(userStatsCounter, finalUserStatsListholder);
+                            System.out.println(sakaiProxy.getGroupTitle(siteID ,groupIds.get(i))+ "++++" + sakaiProxy.getGroupTitleForCurrentSite(groupIds.get(i)));
                             userStatsCounter++;
                         }
                         studentRecorded = false;
                     }
+                }
+            }
+
+            if(fullUserList.size() > finalUserStatsList.size()){
+                for(int i = 0; i < fullUserList.size(); i++){
+                    for(int j = 0; j < finalUserStatsList.size(); j++){
+                        if(fullUserList.get(i).getUserID().equals(finalUserStatsList.get(j).getUserID())){
+                            localUserExists = true;
+                        }
+
+                    }
+                    if(localUserExists){}
+                    else {
+                        finalUserStatsListholder = new AttendanceUserGroupStats();
+                        finalUserStatsListholder.setId(String.valueOf(fullUserList.get(i).getId()));
+                        finalUserStatsListholder.setUserID(fullUserList.get(i).getUserID());
+                        finalUserStatsListholder.setAttendanceSite(fullUserList.get(i).getAttendanceSite());
+                        finalUserStatsListholder.setGroupId("");
+                        finalUserStatsList.add(userStatsCounter, finalUserStatsListholder);
+                        userStatsCounter++;
+                    }
+                    localUserExists = false;
                 }
             }
             Collections.sort(finalUserStatsList, new Comparator<AttendanceUserGroupStats>() {
@@ -170,6 +209,7 @@ public class ExportPage extends BasePage{
                     }
                 }
             });
+            Collections.reverse(attendanceEventlist);
             Collections.sort(attendanceEventlist, new Comparator<AttendanceEvent>() {
                 @Override
                 public int compare(AttendanceEvent attendanceEvent, AttendanceEvent t1) {
@@ -184,26 +224,6 @@ public class ExportPage extends BasePage{
                     }
                 }
             });
-            Collections.sort(attendanceEventlist, new Comparator<AttendanceEvent>() {
-                @Override
-                public int compare(AttendanceEvent attendanceEvent, AttendanceEvent t1) {
-                    if((attendanceEvent.getStartDateTime() == null) && (t1.getStartDateTime() == null)) {
-                        return attendanceEvent.getName().length() - (t1.getName().length());
-                    } else{
-                        return 0;
-                    }
-                }
-            });
-            Collections.sort(attendanceEventlist, new Comparator<AttendanceEvent>() {
-                @Override
-                public int compare(AttendanceEvent attendanceEvent, AttendanceEvent t1) {
-                    if((attendanceEvent.getName().length() - t1.getName().length()) == 0) {
-                        return attendanceEvent.getName().compareTo(t1.getName());
-                    } else{
-                        return 0;
-                    }
-                }
-            });
             eventCount = attendanceEventlist.size();
             studentCount = finalUserStatsList.size();
             header.add("StudentID");
@@ -213,9 +233,9 @@ public class ExportPage extends BasePage{
             for(int y = 0; y < eventCount; y++){
                 String holder2 = String.valueOf(attendanceEventlist.get(y).getStartDateTime());
                 if (holder2.equals("null")){
-                    header.add(attendanceEventlist.get(y).getName() + "[]" + "(" + String.valueOf(attendanceEventlist.get(y).getId())+ ")");
+                    header.add(attendanceEventlist.get(y).getName() + " [] " + "(" + String.valueOf(attendanceEventlist.get(y).getId())+ ")");
                     if(commentsOnOff){
-                        header.add(attendanceEventlist.get(y).getName() + "[]Comments" + "(" + String.valueOf(attendanceEventlist.get(y).getId())+ ")");
+                        header.add(attendanceEventlist.get(y).getName() + " [] Comments" + "(" + String.valueOf(attendanceEventlist.get(y).getId())+ ")");
                     }
                 }
                 else{
@@ -423,7 +443,7 @@ public class ExportPage extends BasePage{
                 getSession().error(getString("attendance.export.import.error.empty_file"));
                 setResponsePage(new ExportPage());
             }else if (!(ExportPage.ExportFormat.XLS.toString().toLowerCase()).equals(extension)){
-                getSession().error("ajndjadnaksjdnkasjdn");
+                getSession().error(getString("attendance.export.import.error.bad_file_format"));
                 setResponsePage(new ExportPage());
             } else if (upload != null) {
                 try{

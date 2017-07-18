@@ -253,6 +253,25 @@ public class SakaiProxyImpl implements SakaiProxy {
 	/**
 	 * {@inheritDoc}
 	 */
+	public List<User> getSectionMembership(String siteId, String groupId) {
+		List<User> returnList = new ArrayList<User>();
+		try {
+			Group group = siteService.getSite(siteId).getGroup(groupId);
+			if(group != null && group.getProviderGroupId() != null) {
+				Set<Member> memberSet = group.getMembers();
+				String maintainRole = group.getMaintainRole();
+				returnList = getUserListForMemberSetHelper(memberSet, maintainRole);
+			}
+		} catch (IdUnusedException e) {
+			log.error("Unable to get group membership " + e);
+			e.printStackTrace();
+		}
+		return returnList;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
 	public List<String> getAvailableGroupsForSite(String siteId) {
 		try {
 			List<String> returnList = new ArrayList<String>();
