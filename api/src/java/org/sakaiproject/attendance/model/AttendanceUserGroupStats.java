@@ -32,7 +32,6 @@ import org.apache.commons.lang.builder.HashCodeBuilder;
 public class AttendanceUserGroupStats {
     private static final    long            serialVersionUID    = 1L;
 
-    private                 String            id;
     private                 String          userID;
     private                 String          groupId;
     private                 AttendanceSite  attendanceSite;
@@ -60,7 +59,6 @@ public class AttendanceUserGroupStats {
         final AttendanceUserGroupStats other = (AttendanceUserGroupStats) obj;
         return new EqualsBuilder()
                 .appendSuper(super.equals(obj))
-                .append(this.id, other.id)
                 .append(this.userID, other.userID)
                 .append(this.groupId, other.groupId)
                 .append(this.attendanceSite, other.attendanceSite)
@@ -71,7 +69,6 @@ public class AttendanceUserGroupStats {
     public int hashCode() {
         return new HashCodeBuilder()
                 .appendSuper(super.hashCode())
-                .append(this.id)
                 .append(this.userID)
                 .append(this.groupId)
                 .append(this.attendanceSite.getId())

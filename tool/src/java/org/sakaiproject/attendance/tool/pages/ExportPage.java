@@ -140,19 +140,17 @@ public class ExportPage extends BasePage{
             AttendanceUserGroupStats finalUserStatsListholder = new AttendanceUserGroupStats();
 
             for(int i = 0; i < groupIds.size(); i++){
-                List<User> testchecker = sakaiProxy.getSectionMembership(siteID, groupIds.get(i));
-                List<AttendanceUserStats> groupUserStatsList = attendanceLogic.getUserStatsForCurrentSite(groupIds.get(i));
-                if(testchecker.size()>0){
-                    for(int j =0; j < testchecker.size(); j++){
+                List<User> sectionUsers = sakaiProxy.getSectionMembership(siteID, groupIds.get(i));
+                if(sectionUsers.size()>0){
+                    for(int j =0; j < sectionUsers.size(); j++){
                         for(int k = 0; k < finalUserStatsList.size(); k++){
-                            if(testchecker.get(j).getId().equals(finalUserStatsList.get(k).getUserID())){
+                            if(sectionUsers.get(j).getId().equals(finalUserStatsList.get(k).getUserID())){
                                 studentRecorded = true;
                                 repeatPlaceHolder = k;
                             }
                         }
                         if(studentRecorded){
                             finalUserStatsListholder = new AttendanceUserGroupStats();
-                            finalUserStatsListholder.setId(finalUserStatsList.get(repeatPlaceHolder).getId());
                             finalUserStatsListholder.setUserID(finalUserStatsList.get(repeatPlaceHolder).getUserID());
                             finalUserStatsListholder.setAttendanceSite(finalUserStatsList.get(repeatPlaceHolder).getAttendanceSite());
                             finalUserStatsListholder.setGroupId(finalUserStatsList.get(repeatPlaceHolder).getGroupId() + ", " + sakaiProxy.getGroupTitle(siteID ,groupIds.get(i)));
@@ -161,12 +159,10 @@ public class ExportPage extends BasePage{
                         }
                         else {
                             finalUserStatsListholder = new AttendanceUserGroupStats();
-                            finalUserStatsListholder.setId(testchecker.get(j).getId());
-                            finalUserStatsListholder.setUserID(testchecker.get(j).getId());
+                            finalUserStatsListholder.setUserID(sectionUsers.get(j).getId());
                             finalUserStatsListholder.setAttendanceSite(attendanceLogic.getAttendanceSite(siteID));
                             finalUserStatsListholder.setGroupId(sakaiProxy.getGroupTitle(siteID ,groupIds.get(i)));
                             finalUserStatsList.add(userStatsCounter, finalUserStatsListholder);
-                            System.out.println(sakaiProxy.getGroupTitle(siteID ,groupIds.get(i))+ "++++" + sakaiProxy.getGroupTitleForCurrentSite(groupIds.get(i)));
                             userStatsCounter++;
                         }
                         studentRecorded = false;
@@ -185,7 +181,6 @@ public class ExportPage extends BasePage{
                     if(localUserExists){}
                     else {
                         finalUserStatsListholder = new AttendanceUserGroupStats();
-                        finalUserStatsListholder.setId(String.valueOf(fullUserList.get(i).getId()));
                         finalUserStatsListholder.setUserID(fullUserList.get(i).getUserID());
                         finalUserStatsListholder.setAttendanceSite(fullUserList.get(i).getAttendanceSite());
                         finalUserStatsListholder.setGroupId("");
@@ -523,10 +518,9 @@ public class ExportPage extends BasePage{
                                         hasCells = false;
                                         String userName = String.valueOf(data.get(1));
                                         String userEID = String.valueOf(data.get(0));
-                                        List<AttendanceRecord> attendanceRecordlist = attendanceLogic.getAttendanceRecordsForUser(userStatsList.get(rowCounter - 1).getUserID().toString());
+                                        ////List<AttendanceRecord> attendanceRecordlist = attendanceLogic.getAttendanceRecordsForUser(userStatsList.get(rowCounter - 1).getUserID().toString());
                                         List<AttendanceEvent> siteEventList = new ArrayList<AttendanceEvent>(attendanceLogic.getAttendanceEventsForCurrentSite());
                                         User userGetter;
-                                        String name = sakaiProxy.getUserSortName(userStatsList.get(rowCounter - 1).getUserID());
 
                                         for (int q = 0; q < eventCounter; q++) {
                                             recordExists = false;
